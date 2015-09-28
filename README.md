@@ -1,17 +1,17 @@
 
 # GRDR Database Documentation
-## Overview
-Registries were  added to the "vocabulary" table as though it were a standardized terminology. each registry was given a vocabulary_id (1000-1004), which would be used in other tables to tie questions back to their source registry.
+## Overview 
+Registries were  added to the "vocabulary" table as though it were a standardized terminology. each registry was given a vocabulary_id (1000-1004), which would be used in other tables to tie questions back to their source registry. 
  <br>
- The **vocabulary** table is critical to understanding the overall structure of this database. In a normal OMOP database, the vocabulary table houses the standard vocabularies used in the OMOP vocabulary. For example, *vocabulary_id* = 1 corresponds to SNOMED-CT, *vocabulary_id*=8 corresponds to RxNorm, etc.
+ The **vocabulary** table is critical to understanding the overall structure of this database. In a normal OMOP database, the vocabulary table houses the standard vocabularies used in the OMOP vocabulary. For example, *vocabulary_id* = 1 corresponds to SNOMED-CT, *vocabulary_id*=8 corresponds to RxNorm, etc. 
  <br>
- To keep the data model integrity, we created a "fake" vocabulary out of each registry's questions, and each question was added to the **concept** table as an artificial "concept". While SNOMED CT is *vocabulary_id*=1, BBS Registry's questions were stored at *vocabulary_id*=1000 (we chose out-of-band *vocabulary_id* 's to avoid overlap with the existing standard **vocabulary** table.) This allowed unmapped data to coexist alongside mapped data in the same database.
+ To keep the data model integrity, we created a "fake" vocabulary out of each registry's questions, and each question was added to the **concept** table as an artificial "concept". While SNOMED CT is *vocabulary_id*=1, BBS Registry's questions were stored at *vocabulary_id*=1000 (we chose out-of-band *vocabulary_id* 's to avoid overlap with the existing standard **vocabulary** table.) This allowed unmapped data to coexist alongside mapped data in the same database. 
  <br>
  Practically, this means that **every** data element from every registry is stored in the database in its original form, with the question text stored in the **grdr_concepts** table under the field *concept_name*, which is assigned a *vocabulary_id * corresponding to the source registry (in the range 1000-1004). In the **observation** table (the primary data table), each question a patient was asked is stored under *observation_concept_id* using the *grdr_concept_id*  from the **grdr_concepts** table. In turn, the **grdr_concepts** table is mirrored in OMOP's  **concept** table to enable the relationships speci
  <br>
- The answer to each question given by each patient is stored in its original form, as submitted by the registries, under *value_as string* in the **observation** table, on a row corresponding to the respective question and patient id.
+ The answer to each question given by each patient is stored in its original form, as submitted by the registries, under *value_as string* in the **observation** table, on a row corresponding to the respective question and patient id. 
  <br>
- For the (large) subset of question-answer pairs that **were mapped**, at least two additional steps were taken. First, a row was created in the **observation_mappings** table for each question (*observation_concept_id*) and answer (*value_as_string*). Second, the mapping(s) of the question was recorded under the set of columns (same row as *observation_concept_id* and *value_as_string*). Most of these mappings were completed in SNOMED CT, and the SNOMED mapping corresponding to a given question was recorded in the groups of columns  including  *omop_concept_id_1* (the assigned primary key for the SNOMED concept in our OMOP database) , *concept_code_1*, (the SNOMED CT ID) *vocabulary_id_1* (SNOMED CT), *preferred_label_1* (+/- *omop_concept_id_2*, *concept_code_2*, etc).
+ For the (large) subset of question-answer pairs that **were mapped**, at least two additional steps were taken. First, a row was created in the **observation_mappings** table for each question (*observation_concept_id*) and answer (*value_as_string*). Second, the mapping(s) of the question was recorded under the set of columns (same row as *observation_concept_id* and *value_as_string*). Most of these mappings were completed in SNOMED CT, and the SNOMED mapping corresponding to a given question was recorded in the groups of columns  including  *omop_concept_id_1* (the assigned primary key for the SNOMED concept in our OMOP database) , *concept_code_1*, (the SNOMED CT ID) *vocabulary_id_1* (SNOMED CT), *preferred_label_1* (+/- *omop_concept_id_2*, *concept_code_2*, etc). 
  <br>
  In some cases, where the patient chose the answer from a discrete, easy to map set of choices (like "Yes"/"No"), the answers to the questions were mapped under the column *value_as_concept_id* in the same row. Unlike questions, which could have multiple mappings that form an expression, answers were mapped to only one SNOMED concept. (The value_as_concept_id can then be joined against the **concept** table on `concept.concept_id = observation_mappings.value_as_concept_id`)
  <br>
@@ -19,21 +19,21 @@ Registries were  added to the "vocabulary" table as though it were a standardize
 ```plpgsql
 SELECT concept_code_1, vocabulary_id_1, preferred_label_1, value_as_string, dict_maps_extracted, value_as_concept_id
 -- [,concept_code_2, vocabulary_id_2, preferred_label_2, concept_code_3, vocabulary_id_3, preferred_label_3]  
-FROM observation
+FROM observation 
 LEFT JOIN observation_mappings on
-observation.observation_concept_id = observation_mappings.observation_concept_id
+observation.observation_concept_id = observation_mappings.observation_concept_id 
 AND observation.value_as_string = observation_mappings.value_as_string
 WHERE TRUE
 -- AND  [relevant criteria here ]
-```
+``` 
 
  As an example , if we want to look mapped versions of all questions related to a biopsy (using the SNOMED concept for "Biopsy",  SCTID = 86273004), were can alter this query as follows:
 ```plpgsql
-SELECT concept_code_1, vocabulary_id_1, preferred_label_1, value_as_string, dict_maps_extracted
+SELECT concept_code_1, vocabulary_id_1, preferred_label_1, value_as_string, dict_maps_extracted 
 -- [,concept_code_2, vocabulary_id_2, preferred_label_2, concept_code_3, vocabulary_id_3, preferred_label_3]  
-FROM observation
+FROM observation 
 LEFT JOIN observation_mappings on
-observation.observation_concept_id = observation_mappings.observation_concept_id
+observation.observation_concept_id = observation_mappings.observation_concept_id 
 AND observation.value_as_string = observation_mappings.value_as_string
 WHERE TRUE
 AND  '86273004' in (concept_code_1, concept_code_2, concept_code_3, concept_code_4);
@@ -45,7 +45,7 @@ AND  '86273004' in (concept_code_1, concept_code_2, concept_code_3, concept_code
 ### grdr_concepts
 _The core table for GRDR mappings_
 
-All of the data that was sent to us from the registries was normalized into the OMOP data structure as follows.
+All of the data that was sent to us from the registries was normalized into the OMOP data structure as follows. 
 
 For each registry, before we looked at their data, we extracted all of the questions (columns) and added them to a master table with the questions from all registries. This table is called *grdr_concepts*. There is probably too much information in this table for your use (it is designed to fit into the OMOP data model), so in the table below I have identified the columns that should be disregarded.
 
@@ -53,17 +53,17 @@ The **grdr_concepts** table is mirrored in OMOP's  **concept** table,  where the
 
 *public.grdr_concepts*
 
-| Column | Type | Modifiers | Description |
-| ---- | --- | --- | -- |
+| Column | Type | Modifiers | Description | 
+| ---- | --- | --- | -- | 
 | concept_id | integer | not null |  Each question within each registry was given a unique ID whose first four digits were the vocabulary ID of the registry it came from. For example, BBS’s first question was given the ID 10000001  |
 | concept_name | character varying(1000) | | This is the text of the question, verbatim, as submitted by the registries
-| concept_level | numeric(38,0) |  | **Disregard**. Set to  zero by default to avoid violating non-null constraints in the ""concept" table. |
+| concept_level | numeric(38,0) |  | **Disregard**. Set to  zero by default to avoid violating non-null constraints in the ""concept" table. | 
 | concept_class | character varying(60) |  |   Identifies concept as a raw data element that has not been standardized in contrast with the rest of the  "concept" table.
 | vocabulary_id | integer |  | Registries were  added to the "vocabulary" table as though it were a standardized terminology. each registry was given a vocabulary_id (1000-1004), which would be used in other tables to tie questions back to their source registry. |
 | concept_code | character varying(40) |  | Also known as "registry_question_name".  this was the label of the column in the flat file with patient data submitted by the registries. |
-| valid_start_date | timestamp with time zone | | **Disregard**. Set to  zero by default to avoid violating non-null constraints in the "concept" table.
-| valid_end_date | timestamp with time zone | | **Disregard**. Set to  zero by default to avoid violating non-null constraints in the ""concept" table.
-| invalid_reason | character varying(1) | | **Disregard**. Set to  zero by default to avoid violating non-null constraints in the ""concept" table.
+| valid_start_date | timestamp with time zone | | **Disregard**. Set to  zero by default to avoid violating non-null constraints in the "concept" table. 
+| valid_end_date | timestamp with time zone | | **Disregard**. Set to  zero by default to avoid violating non-null constraints in the ""concept" table. 
+| invalid_reason | character varying(1) | | **Disregard**. Set to  zero by default to avoid violating non-null constraints in the ""concept" table. 
 
 
 
@@ -74,23 +74,23 @@ The **grdr_concepts** table is mirrored in OMOP's  **concept** table,  where the
 | Column | Type | Description |
 | ---- | ---- | ----- |  
 | observation_concept_id | integer | Foreign key for source registry question, as it appears in **grdr_concepts** (and mirrored in the **concept** table).  |
-| concept_name | character varying(1000) | Question  text, as it appears in the **grdr_concepts** table and mirrored in the **concept** table. |
+| concept_name | character varying(1000) | Question  text, as it appears in the **grdr_concepts** table and mirrored in the **concept** table. | 
 | value_as_string | character varying | Each patient's answer to question as submitted by registry (a.k.a. the question's "value"). Since this table is a metadata table, and is meant to store mappings, not patient data, there is one row for each UNIQUE question-answer pair. In contrast, the **observation** table has one row for each answer given by each patient on each question (meaning it is the table with all of the patient data.)  |
 | vocabulary_name | character varying(256) | *vocabulary_name* describes the name of the registry.  |
-| value_as_concept_id | integer | In some cases, where the patient chose the answer from a discrete, easy to map set of choices (like "Yes"/"No"), the answers to the questions were mapped under the column *value_as_concept_id*. |
-| informationtype | text | Type of answer required by the question. For example, yes/no questions were labeled "bool", whereas free text questions were labeled "freetext", etc. See below for more in depth description of the types.  |
-| patient_count | integer | Total number of patients that answered the question. |
-| id | integer | not null default nextval('observation_mappings_id_seq'::regclass) |  Primary Key for *observation_mappings* table |
-| dict_maps_extracted | jsonb | Some registries recorded numbers to represent certain answers given by the patient (e.g. 1=yes, 0=no). In many cases, the question text was the only place where the meaning of these numeric answers was explained. Using algorithms based on regular expressions, we extracted as many of these "answer keys" as possible. Since these were extracted into the jsonb datatype, this table can only be viewed with PostgreSQL version 9.4 or greater.  |
-| intermediate_string | text | For a given question-answer pair, when "answer keys" were used (e.g. 1=yes, 0=no), this is the string that is represented by the numeric answer recorded by the registry (which, in this table, is stored in *value_as_string*) |
-| snomed_pref_label | text | The preferred label in SNOMED corresponding to the SNOMED code that was mapped to the *intermediate_string*. This field was only used when answers were recorded as numeric values representing string answers (e.g. 1=yes, 0=no.)|
-| snomed_code | text | SNOMED code that was mapped to the *intermediate_string*. This field was only used when answers were recorded as numeric values representing string answers (e.g. 1=yes, 0=no. |
-| question_keywords | text | **Disregard.** Intermediate metadata for automated mapping algorithms. |
-| final_mapping | jsonb | **Disregard.** Intermediate metadata for automated mapping algorithms. |
-| grdr_concept_id | text | **Disregard**. This is the same as *observation_concept_id*, is a (sloppy) remnant of a join. |
+| value_as_concept_id | integer | In some cases, where the patient chose the answer from a discrete, easy to map set of choices (like "Yes"/"No"), the answers to the questions were mapped under the column *value_as_concept_id*. | 
+| informationtype | text | Type of answer required by the question. For example, yes/no questions were labeled "bool", whereas free text questions were labeled "freetext", etc. See below for more in depth description of the types.  | 
+| patient_count | integer | Total number of patients that answered the question. | 
+| id | integer | not null default nextval('observation_mappings_id_seq'::regclass) |  Primary Key for *observation_mappings* table | 
+| dict_maps_extracted | jsonb | Some registries recorded numbers to represent certain answers given by the patient (e.g. 1=yes, 0=no). In many cases, the question text was the only place where the meaning of these numeric answers was explained. Using algorithms based on regular expressions, we extracted as many of these "answer keys" as possible. Since these were extracted into the jsonb datatype, this table can only be viewed with PostgreSQL version 9.4 or greater.  | 
+| intermediate_string | text | For a given question-answer pair, when "answer keys" were used (e.g. 1=yes, 0=no), this is the string that is represented by the numeric answer recorded by the registry (which, in this table, is stored in *value_as_string*) | 
+| snomed_pref_label | text | The preferred label in SNOMED corresponding to the SNOMED code that was mapped to the *intermediate_string*. This field was only used when answers were recorded as numeric values representing string answers (e.g. 1=yes, 0=no.)| 
+| snomed_code | text | SNOMED code that was mapped to the *intermediate_string*. This field was only used when answers were recorded as numeric values representing string answers (e.g. 1=yes, 0=no. | 
+| question_keywords | text | **Disregard.** Intermediate metadata for automated mapping algorithms. | 
+| final_mapping | jsonb | **Disregard.** Intermediate metadata for automated mapping algorithms. | 
+| grdr_concept_id | text | **Disregard**. This is the same as *observation_concept_id*, is a (sloppy) remnant of a join. | 
 | which | text | **Disregard.** Intermediate metadata for automated mapping algorithms. |
-| omop_concept_id_1 | integer |  Mapping of the source registry's question to a standard concept. The assigned primary key for the standard vocabulary concept in our OMOP vocabulary. You can always join anything that ends in "_concept_id" on the **concept** table.|
-| concept_code_1 | text | Mapping of the source registry's question to a standard concept. The concept code represents the identifier of the concept in the source data it originates from, such as SNOMED-CT concept IDs, RxNorm RXCUIs etc. Note that concept codes are not unique across vocabularies.|
+| omop_concept_id_1 | integer |  Mapping of the source registry's question to a standard concept. The assigned primary key for the standard vocabulary concept in our OMOP vocabulary. You can always join anything that ends in "_concept_id" on the **concept** table.| 
+| concept_code_1 | text | Mapping of the source registry's question to a standard concept. The concept code represents the identifier of the concept in the source data it originates from, such as SNOMED-CT concept IDs, RxNorm RXCUIs etc. Note that concept codes are not unique across vocabularies.| 
 | vocabulary_id_1 | text |  Mapping of the source registry's question to a standard concept. The vocabulary id is a foreign key to the **vocabulary** table indicating from which source the standard concept has been adapted. |
 | preferred_label_1 | text | Mapping of the source registry's question to a standard concept. The preferred label is an unambiguous, meaningful and descriptive name for the standard concept.  |
 | omop_concept_id_2 | integer | Mapping of the source registry's question to a standard concept. The assigned primary key for the standard vocabulary concept in our OMOP vocabulary. You can always join anything that ends in "_concept_id" on the **concept** table.|
@@ -121,7 +121,7 @@ Indexes:
 > **QUESTION TYPE**
 
 > | Abbreviation | Full Name | Short Description | Example Question | Semantic Template |
-| ----- | ---- | ---- | ---- | ---- |
+| ----- | ---- | ---- | ---- | ---- | 
 | bool | Boolean | used to label yes-no (or either unknown or inapplicable) responses, alive-deceased (or unknown) responses, and responses that have either been checked or unchecked | Do you have kidney failure? (Yes/No) | {{question}} is boolean:{{answer}} |
 | freetext | Free Text | used to label any free response (e.g. a response containing phrases created by the survey taker) | Describe your symptoms freely. (must be free text AND not meet criteria for other categories) | {{question}} is described by patient as free text:{{answer}} |
 | garbage | Garbage | used to label responses that do not fit any of the other categories and will not be useful data | {{question}} has unmappable answer garbage:{{answer}} |
@@ -139,7 +139,7 @@ Certain mappings were compunt
 | famhx | Family History | medical history of relatives |
 | units | Units | standard forms of measuring |
 
-> **More about keywords**
+> **More about keywords** 
 > Multiple keywords were extracted using an algorithm. Then, the best keyword was selected from the keywords provided by the keyword extraction algorithm. The best keyword was chosen after looking at the question and answer and determining which keyword was the best fit for both.
 
 
@@ -226,7 +226,7 @@ For the GRDR, this was used to track which registry a participant belonged to.
 
 ### person
 
-Demographic information about a Person. The **person** table is the core table for the database--all clinical facts are tied to a *person_id*, which is the primary key for patients in the database.
+Demographic information about a Person. The **person** table is the core table for the database--all clinical facts are tied to a *person_id*, which is the primary key for patients in the database. 
 
 
 
@@ -251,7 +251,7 @@ Demographic information about a Person. The **person** table is the core table f
 
 ### General Notes
 #### Version 4 to Version 5
-The GRDR had the unfortunate privilege of straddling a major upgrade to the OMOP Data Model and Vocabulary. Largely, this should not present any difficulty in extracting the data from OMOP into a different database, but it results in a somewhat difficult to follow logic model for the database as a standalone entity.
+The GRDR had the unfortunate privilege of straddling a major upgrade to the OMOP Data Model and Vocabulary. Largely, this should not present any difficulty in extracting the data from OMOP into a different database, but it results in a somewhat difficult to follow logic model for the database as a standalone entity. 
 
 Broadly, the denormalized tables **condition_occurrence**, **drug_exposure**, **person**, **care_site**, **observation** utilize OMOP V4.  The Standard Vocabulary Tables (**concept**, **vocabulary**, **domain**, **relationship**, **concept_relationship**, **concept_ancestor**, etc) utilize OMOP V5, since V5 provided a richer vocabulary structure (adding the **domain** table, most critically); additionally, V5 contained   more up to date versions of SNOMED CT, RxNorm, LOINC, and others. For almost all users, the difference between OMOP V4 and OMOP V5 will be indistinguishable.
 
@@ -264,15 +264,15 @@ ______
 
 ### By table:
 
-### concept
+### concept 
 
-OMOP's Standardized Vocabulary contains records, or Concepts, that uniquely identify each fundamental unit of meaning used to express clinical information in all domain tables of the CDM. Concepts are derived from vocabularies, which represent clinical information across a domain (e.g. conditions, drugs, procedures) through the use of codes and associated descriptions. Some Concepts are designated Standard Concepts, meaning these Concepts can be used as normative expressions of a clinical entity within the OMOP Common Data Model and within standardized analytics. Each Standard Concept belongs to one domain, which defines the location where the Concept would be expected to occur within data tables of the CDM. For the GRDR, source registry questions were added to the **concept** table as Concepts. In the OMOP CDM, this enables unmapped data (i.e. data stored in its original question and answer format) to sit side-by-side with mapped data (that is represented by Standard Concepts).
+OMOP's Standardized Vocabulary contains records, or Concepts, that uniquely identify each fundamental unit of meaning used to express clinical information in all domain tables of the CDM. Concepts are derived from vocabularies, which represent clinical information across a domain (e.g. conditions, drugs, procedures) through the use of codes and associated descriptions. Some Concepts are designated Standard Concepts, meaning these Concepts can be used as normative expressions of a clinical entity within the OMOP Common Data Model and within standardized analytics. Each Standard Concept belongs to one domain, which defines the location where the Concept would be expected to occur within data tables of the CDM. For the GRDR, source registry questions were added to the **concept** table as Concepts. In the OMOP CDM, this enables unmapped data (i.e. data stored in its original question and answer format) to sit side-by-side with mapped data (that is represented by Standard Concepts). 
 
 Generally, Concepts can represent broad categories (like “Cardiovascular disease”), detailed clinical elements (”Myocardial infarction of the anterolateral wall”) or modifying characteristics and attributes that define Concepts at various levels of detail (severity of a disease, associated morphology, etc.).
 
 Records in the Standardized Vocabularies tables are derived from national or international vocabularies such as SNOMED-CT, RxNorm, and LOINC, or custom Concepts defined to cover various aspects of observational data analysis. For a detailed description of these vocabularies, their use in the OMOP CDM and their relationships to each other please refer to the [[documentation:vocabulary|Specifications]].
 
-| Field | Required | Type | Description |
+| Field | Required | Type | Description | 
 | ---- | ---- | ---- | ---- |
 |concept_id|Yes|integer|A unique identifier for each Concept across all domains.|
 |concept_name|Yes|varchar(255)|An unambiguous, meaningful and descriptive name for the Concept.|
@@ -288,18 +288,18 @@ Records in the Standardized Vocabularies tables are derived from national or int
 ####  Conventions
 Concepts in the Common Data Model are derived from a number of public or proprietary terminologies such as SNOMED-CT and RxNorm, or custom generated to standardize aspects of observational data. Both types of Concepts are integrated based on the following rules:
   * All Concepts are maintained centrally by the CDM and Vocabularies Working Group. Additional concepts can be added, as needed, upon request.
-  * For all Concepts, whether they are custom generated or adopted from published terminologies, a unique numeric identifier concept_id is assigned and used as the key to link all observational data to the corresponding Concept reference data.
+  * For all Concepts, whether they are custom generated or adopted from published terminologies, a unique numeric identifier concept_id is assigned and used as the key to link all observational data to the corresponding Concept reference data. 
   * The concept_id of a Concept is persistent, i.e. stays the same for the same Concept between releases of the Standardized Vocabularies.
   * A descriptive name for each Concept is stored as the Concept Name as part of the **concept** table.
   * Each Concept is assigned to a Domain. For Standard Concepts, these is always a single Domain. Source Concepts can be composite or coordinated entities, and therefore can belong to more than one Domain. The domain_id field of the record contains the abbreviation of the Domain, or Domain combination. Please refer to the Standardized Vocabularies [[documentation:vocabulary:domains|Specification]] for details of the Domain Assignment.
-  * Concept Class designation are attributes of Concepts. Each Vocabulary has its own set of permissible Concept Classes, although the same Concept Class can be used by more than one Vocabulary. Depending on the Vocabulary, the Concept Class may categorize Concepts vertically (parallel) or horizontally (hierarchically).
+  * Concept Class designation are attributes of Concepts. Each Vocabulary has its own set of permissible Concept Classes, although the same Concept Class can be used by more than one Vocabulary. Depending on the Vocabulary, the Concept Class may categorize Concepts vertically (parallel) or horizontally (hierarchically). 
   * Concept Class attributes should not be confused with Classification Concepts. These are separate Concepts that have a hierarchical relationship to Standard Concepts or each other, while Concept Classes are unique Vocabulary-specific attributes for each Concept.
   * For Concepts inherited from published terminologies, the source code is retained in the concept_code field and can be used to reference the source vocabulary.
-*_source_concept_id fields and are not used in CONCEPT_ANCESTOR table.
+*_source_concept_id fields and are not used in CONCEPT_ANCESTOR table. 
   * The lifespan of a Concept is recorded through its valid_start_date, valid_end_date and the invalid_reason fields. This allows Concepts to correctly reflect at which point in time were defined. Usually, Concepts get deprecatd if their meaning was deemed ambigous, a duplication of another Conncept, or needed revision for scientific reason. For example, drug ingredients get updated when different salt or isomer variants enter the market. Usually, drugs taken off the market do not cause a deprecation by the terminology vendor. Since observational data are valid with respect to the time they are recorded, it is key for the Standardized Vocabularies to provide even obsolete codes and maintain their relationships to other current Concepts .
   * Concepts without a known instantiated date are assigned valid_start_date of ‘1-Jan-1970’.
   * Concepts that are not invalid are assigned valid_end_date of ‘31-Dec-2099’.
-  * Deprecated Concepts (with a valid_end_date before the release date of the Standardized Vocabularies) will have a value of 'D' (deprecated without successor) or 'U' (updated).
+  * Deprecated Concepts (with a valid_end_date before the release date of the Standardized Vocabularies) will have a value of 'D' (deprecated without successor) or 'U' (updated). 
   * Values for concept_ids generated as part of Standardized Vocabularies will be reserved from 0 to 2,000,000,000. Above this range, concept_ids are available for local use and are guaranteed not to clash with future releases of the Standardized Vocabularies.
 
 
@@ -339,8 +339,8 @@ The **concept_relationship** table contains records that define direct relations
 |valid_end_date|Yes|date|The date when the Concept Relationship became invalid because it was deleted or superseded (updated) by a new relationship. Default value is 31-Dec-2099.|
 |invalid_reason|No|varchar(1)|Reason the relationship was invalidated. Possible values are 'D' (deleted), 'U' (replaced with an update) or NULL when valid_end_date has the default value.|
 
-#### Conventions
-  * Relationships can generally be classified as hierarchical (parent-child) or non-hierarchical (lateral).
+#### Conventions 
+  * Relationships can generally be classified as hierarchical (parent-child) or non-hierarchical (lateral). 
   * All Relationships are directional, and each Concept Relationship is represented twice symmetrically within the **concept_relationship**table. For example, the two SNOMED concepts of ‘Acute myocardial infarction of the anterior wall’ and ‘Acute myocardial infarction’ have two Concept Relationships: 1- ‘Acute myocardial infarction of the anterior wall’ ‘Is a’ ‘Acute myocardial infarction’, and 2- ‘Acute myocardial infarction’ ‘Subsumes’ ‘Acute myocardial infarction of the anterior wall’.
   * There is one record for each Concept Relationship connecting the same Concepts with the same relationship_id.
   * Since all Concept Relationships exist with their mirror image (concept_id_1 and concept_id_2 swapped, and the relationship_id replaced by the reverse_relationship_id from the **relationship** table), it is not necessary to query for the existence of a relationship both in the concept_id_1 and concept_id_2 fields.
@@ -351,7 +351,7 @@ The **concept_relationship** table contains records that define direct relations
 
 ### relationship
 
-The **relationship** table provides a reference list of all types of relationships that can be used to associate any two concepts in the **concept_relationship** table.
+The **relationship** table provides a reference list of all types of relationships that can be used to associate any two concepts in the **concept_relationship** table. 
 
 |Field|Required|Type|Description|
 |-----|-----|-----|-------|
@@ -373,114 +373,34 @@ The **relationship** table provides a reference list of all types of relationshi
   * Each Relationship also has an equivalent entry in the Concept table, which is recorded in the relationship_concept_id field. This is for purposes of creating a closed Information Model, where all entities in the OMOP CDM are covered by unique Concepts.
   * Hierarchical Relationships are used to build a hierarchical tree out of the Concepts, which is recorded in the CONCEPT_ANCESTOR table. For example, "has_ingredient" is a Relationship between Concepst of the Concept Class 'Clinical Drug' and those of 'Ingredient', and all Ingredients can be classified as the "parental" hierarchical Concepts for the drug products they are part of. All 'Is a' Relationships are hierarchical.
   * Relationships, also hierarchical, can be between Concepts within the same Vocabulary or those adopted from different Vocabulary sources.
-  * In past versions of the RELATIONSHIP table, the relationship_id used to be a numerical value. A conversion table between these old and new IDs is given below:
+  * In past versions of the RELATIONSHIP table, the relationship_id used to be a numerical value. A conversion table between these old and new IDs is given at http://www.ohdsi.org/web/wiki/doku.php?id=documentation:cdm:relationship.
 
-|relationship_id in Version 4 | elationship_id Version 5|
-| ---- | ---- |
-|1|LOINC replaced by|
-|2|Has precise ing|
-|3|Has tradename|
-|4|RxNorm has dose form|
-|5|Has form|
-|6|RxNorm has ing|
-|7|Constitutes|
-|8|Contains|
-|9|Reformulation of|
-|10|Subsumes|
-|11|NDFRT has dose form|
-|12|Induces|
-|13|May diagnose|
-|14|Has physio effect|
-|15|Has CI physio effect|
-|16|NDFRT has ing|
-|17|Has CI chem class|
-|18|Has MoA|
-|19|Has CI MoA|
-|20|Has PK|
-|21|May treat|
-|22|CI to|
-|23|May prevent|
-|24|Has metabolites|
-|25|Has metabolism|
-|26|May be inhibited by|
-|27|Has chem structure|
-|28|NDFRT - RxNorm eq|
-|29|Has recipient cat|
-|30|Has proc site|
-|31|Has priority|
-|32|Has pathology|
-|33|Has part of|
-|34|Has severity|
-|35|Has revision status|
-|36|Has access|
-|37|Has occurrence|
-|38|Has method|
-|39|Has laterality|
-|40|Has interprets|
-|41|Has indir morph|
-|42|Has indir device|
-|43|Has specimen|
-|44|Has interpretation|
-|45|Has intent|
-|46|Has focus|
-|47|Has manifestation|
-|48|Has active ing|
-|49|Has finding site|
-|50|Has episodicity|
-|51|Has dir subst|
-|52|Has dir morph|
-|53|Has dir device|
-|54|Has component|
-|55|Has causative agent|
-|56|Has asso morph|
-|57|Has asso finding|
-|58|Has measurement|
-|59|Has property|
-|60|Has scale type|
-|61|Has time aspect|
-|62|Has specimen proc|
-|63|Has specimen source|
-|64|Has specimen morph|
-|65|Has specimen topo|
-|66|Has specimen subst|
-|67|Has due to|
-|68|Has relat context|
-|69|Has dose form|
-|70|Occurs after|
-|71|Has asso proc|
-|72|Has dir proc site|
-|73|Has indir proc site|
-|74|Has proc device|
-|75|Has proc morph|
-|76|Has finding context|
-|77|Has proc context|
-|78|Has temporal context|
-|79|Findinga sso with|
-|80|Has surgical appr|
-|81|Using device|
-|82|Using energy|
-|83|Using subst|
-|84|Using acc device|
-|85|Has clinical course|
-|86|Has route of admin|
-|87|Using finding method|
-|88|Using finding inform|
-|92|ICD9P - SNOMED eq|
-|93|CPT4 - SNOMED cat|
-|94|CPT4 - SNOMED eq|
-|125|MedDRA - SNOMED eq|
-|126|Has FDA-appr ind|
-|127|Has off-label ind|
-|129|Has CI|
-|130|ETC - RxNorm|
-|131|ATC - RxNorm|
-|132|SMQ - MedDRA|
-|135|LOINC replaces|
-|136|Precise ing of|
-|137|Tradename of|
-|138|RxNorm dose form of|
-|139|Form of|
-|140|RxNorm ing of|
+
+### concept_ancestor 
+
+The CONCEPT_ANCESTOR table is designed to simplify observational analysis by providing the complete hierarchical relationships between Concepts. Only direct parent-child relationships between Concepts are stored in the CONCEPT_RELATIONSHIP table. To determine higher level ancestry connections, all individual direct relationships would have to be navigated at analysis time. The  CONCEPT_ANCESTOR table includes records for all parent-child relationships, as well as grandparent-grandchild relationships and those of any other level of lineage. Using the CONCEPT_ANCESTOR table allows for querying for all descendants of a hierarchical concept. For example, drug ingredients and drug products are all descendants of a drug class ancestor.
+
+This table is entirely derived from the CONCEPT, CONCEPT_RELATIONSHIP and RELATIONSHIP tables.  
+
+| Field| Required | Type | Description |
+| ---- | ----- | ----- | ---- |
+|ancestor_concept_id|Yes|integer|A foreign key to the concept in the concept table for the higher-level concept that forms the ancestor in the relationship.|
+|descendant_concept_id|Yes|integer|A foreign key to the concept in the concept table for the lower-level concept that forms the descendant in the relationship.|
+|min_levels_of_separation|Yes|integer|The minimum separation in number of levels of hierarchy between ancestor and descendant concepts. This is an attribute that is used to simplify hierarchic analysis.|
+|max_levels_of_separation|Yes|integer|The maximum separation in number of levels of hierarchy between ancestor and descendant concepts. This is an attribute that is used to simplify hierarchic analysis.|
+
+#### Conventions 
+
+  * Each concept is also recorded as an ancestor of itself.
+  * Only valid and Standard Concepts participate in the CONCEPT_ANCESTOR table. It is not possible to find ancestors or descendants of deprecated or Source Concepts.
+  * Usually, only Concepts of the same Domain are connected through records of the CONCEPT_ANCESTOR table, but there might be exceptions.
+
+
+
+
+
+
+RxNorm ing of|
 |141|Consists of|
 |142|Contained in|
 |143|Reformulated in|
